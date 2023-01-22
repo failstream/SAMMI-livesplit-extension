@@ -5,7 +5,7 @@ This is an extension for SAMMI that adds the ability to control livesplit, as we
 # Install:
   1) Follow the instructions to download and install livesplit websocket from here: https://github.com/Xenira/LiveSplit-Websocket
   2) Download the release version of SAMMI livesplit extenension and install using SAMMI's built in extension installer
-  3) Install the test deck from the TestDeck.txt file. This is optional, but recommended if you need examples of how it works with SAMMI.
+  3) Install the test deck from the LiveSplitTestDeck.txt file. This is optional, but recommended if you need examples of how it works with SAMMI.
 
 # Usage:
 
