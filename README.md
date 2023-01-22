@@ -15,7 +15,7 @@ This extension adds three new commands and several triggers to SAMMI under Exten
       - You must run this command before you can do anything else. This will connect SAMMI to the websocket in livesplit and allow the two programs to communicate. Input the ip and port that you are using in livesplit (default is 127.0.0.1 and 16835).
       
   * Livesplit Command:
-      - This will send an instruction to Livesplit. Can be used to reset, start the timer, etc. using hotkeys or buttons from within LioranBoard.
+      - This will send an instruction to Livesplit. Can be used to reset, start the timer, etc. using hotkeys or buttons from within SAMMI.
       
   * Livesplit Request:
       - This sends a request for data from Livesplit and puts it into a variable of your choice. Fields are listed below.
@@ -24,7 +24,7 @@ This extension adds three new commands and several triggers to SAMMI under Exten
       
           `modifier`    - This field is for modifying specific commands. I have not extensively tested this, so unless you know what you are doing leave it blank.
           
-          `variable`    - This will be the variable name that LioranBoard will put your data into.
+          `variable`    - This will be the variable name that SAMMI will put your data into.
           
           `buttonID`    - This is so that you can choose a button for the variable to belong to so that it doesn't have to be global.
        
