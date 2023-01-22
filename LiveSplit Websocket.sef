@@ -1,0 +1,231 @@
+[extension_name]
+LiveSplit Websocket
+
+[extension_info]
+
+    < !--
+    * @name: LiveSplit Websocket
+    * @author: failstream#2571
+    * -->
+
+[extension_version]
+
+    < !--
+    * @version: 1.2
+    * -->
+
+[insert_external]
+
+<div>
+    <p>LiveSplit Websocket</p>
+    Connection Status: <p id="livesplit-status">Not Initiated</p>
+    Messages: <p id="livesplit-message"></p>
+    Errors: <p id="livesplit-error">Error Information</p>
+</div>
+
+<script>
+    const lsRequestTypes = ['getbestpossibletime', 'getcomparison', 'getcomparisonsplittime', 'getcurrentsplitname', 'getcurrenttime', 'getcurrenttimerphase', 'getGame', 'getlastsplittime', 'getprevioussplitname', 'getsplitindex', 'getsplits', 'getdelta', 'getfinaltime', 'getpredictedtime'];
+    const lsListenTypes = ['pause', 'reset', 'resume', 'skipSplit', 'split', 'start', 'switchComparison', 'undoAllPauses', 'undoSplit'];
+    const lsWaitingRequests = [];
+</script>
+
+[insert_command]
+
+SAMMI.extCommand('Livesplit Connect', 3355443, 52, {
+    ip: ['ip', 14, '127.0.0.1', 1],
+    port: ['port', 14, '16835', 1]
+})
+
+SAMMI.extCommand('Livesplit Command', 3355443, 52, {
+    command: ['command', 19, 'starttimer', 1, ['alwayspausegametime', 'pause', 'pausegametime', 'reset', 'resume', 'skipsplit', 'split', 'startorsplit', 'starttimer', 'switchto gametime', 'switchto realtime', 'unpausegametime', 'unsplit']]
+})
+
+SAMMI.extCommand('Livesplit Request', 3355443, 52, {
+    request: ['request', 19, 'splits', 1, ['bestpossibletime', 'comparison', 'comparisonsplittime', 'currentsplitname', 'currenttime', 'currenttimerphase', 'delta', 'finaltime', 'Game', 'lastsplittime', 'predictedtime', 'previoussplitname', 'splitindex', 'splits']],
+    modifier: ['modifier', 14, '', 1],
+    variable: ['variable', 14, '', 1],
+    buttonID: ['buttonID', 14, '', 1]
+})
+
+[insert_hook]
+
+  case "Livesplit Connect": {
+    liveSplitConnect(SAMMIJSON.ip, SAMMIJSON.port)
+} break
+  case "Livesplit Command": {
+    liveSplitCommand(SAMMIJSON.command)
+} break
+  case "Livesplit Request": {
+    liveSplitRequest(SAMMIJSON.request, SAMMIJSON.modifier, SAMMIJSON.variable, SAMMIJSON.buttonID)
+} break
+
+[insert_script]
+
+async function liveSplitConnect(ip, port) {
+    try {
+        let url = 'ws://' + ip + ':' + port + '/livesplit';
+        const lsWebsocket = window.lsWebsocket = new WebSocket(url);
+        lsWebsocket.onopen = function (event) {
+            lsListenTypes.forEach(type => {
+                const listenMsg = 'registerEvent ' + type;
+                lsWebsocket.send(listenMsg, false);
+            });
+            document.getElementById('livesplit-status').style.fontWeight = 'bold';
+            document.getElementById('livesplit-status').style.color = 'green';
+            document.getElementById('livesplit-status').innerHTML = 'CONNECTED';
+        };
+        lsWebsocket.onclose = function (event) {
+            document.getElementById('livesplit-status').style.fontWeight = 'bold';
+            document.getElementById('livesplit-status').style.color = 'red';
+            document.getElementById('livesplit-status').innerHTML = 'DISCONNECTED';
+        };
+        lsWebsocket.onerror = function (event) {
+            document.getElementById('livesplit-error').innerHTML = event.type;
+            SAMMI.alert(error);
+        };
+        lsWebsocket.onmessage = function (event) {
+            let data = JSON.parse(event.data);
+            document.getElementById('livesplit-message').innerHTML = "Event name: " + data.name + "   Data: " + data.data;
+            if (lsListenTypes.includes(data.name)) {
+                sendTrigger(data.name);
+                if (data.name == 'split') {
+                    sendAdditionalSplitTriggers();
+                }
+            }
+            if (lsRequestTypes.includes(data.name)) {
+                let alertText = 'Request is ' + data.name;
+                SAMMI.alert(alertText);
+            }
+        };
+
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+function sendTrigger(event) {
+    let triggerName = 'livesplit ';
+    triggerName += event;
+    SAMMI.triggerExt(triggerName, {});
+}
+
+async function sendAdditionalSplitTriggers() {
+    let obj = {};
+
+    //get trigger pull info
+    let pulls = ['splits','splitindex','Game','bestpossibletime','comparison'];
+    for (let i = 0; i < pulls.length; i++) {
+        let result = await requestData(pulls[i], '');
+        obj[pulls[i]] = result;
+    }
+
+    //update index so it can be used more easily in arrays
+    obj.splitindex -= 1;
+
+    //get delta for any split
+	let currenttimerphase = await requestData('currenttimerphase', '');
+	if (currenttimerphase == "Ended"){
+		obj.delta = obj.splits[obj.splitindex].splitTime - obj.splits[obj.splitindex].comparison;
+		//trigger on pb
+		if (obj.splits[obj.splitindex].splitTime < obj.splits[obj.splitindex].personalBestSplitTime){
+			SAMMI.triggerExt('livesplit pb', {});
+		}
+	} else {
+		obj.delta = await requestData('delta', '');
+	}
+
+	//trigger pulls for ahead/behind
+	if (obj.delta < 0) {
+		obj.ahead = true
+	} else if (obj.delta > 0) {
+		obj.ahead = false
+	}
+
+	//first split trigger pulls for best segment & gained/lost
+	if (obj.splitindex == 0){
+		if (obj.splits[obj.splitindex].splitTime < obj.splits[obj.splitindex].bestSegmentTime){
+			obj.gold = true
+		}else{
+			obj.gold = false
+		}
+		
+		if (obj.delta < 0){
+			obj.gained = true
+		}else if (obj.delta > 0){
+			obj.gained = false
+		}
+	
+	//further splits trigger pulls for best segment & gained/lost
+	} else if (obj.splitindex > 0){
+		
+		// don't bother if previous split was skipped in this run or comparison bc thats annoying :)
+		if ("splitTime" in obj.splits[obj.splitindex-1] && "comparison" in obj.splits[obj.splitindex-1]){
+			if ((obj.splits[obj.splitindex].splitTime - obj.splits[obj.splitindex-1].splitTime) < obj.splits[obj.splitindex].bestSegmentTime){
+				obj.gold = true
+			}else{
+				obj.gold = false
+			}
+			
+			let olddelta = obj.splits[obj.splitindex-1].splitTime - obj.splits[obj.splitindex-1].comparison;
+			if (obj.delta < olddelta){
+				obj.gained = true
+			}else if (obj.delta > olddelta){
+				obj.gained = false
+			}
+		}
+	}
+
+    if (obj.gold){
+		SAMMI.triggerExt('livesplit gold', {});
+	}
+}
+
+function liveSplitCommand(command) {
+    if (lsWebsocket.readyState == 1) {
+        try {
+            lsWebsocket.send(command);
+        } catch (e) {
+            console.log(e);
+            document.getElementById('livesplit-error').innerHTML = e;
+        }
+    } else {
+        document.getElementById('livesplit-error').innerHTML = 'Attempted command while not connected to livesplit.';
+    }
+}
+
+async function liveSplitRequest(request, modifier, variable, buttonID) {
+    let result = await requestData(request, modifier);
+    SAMMI.setVariable(variable, result, buttonID);
+}
+
+async function requestData(request, modifier) {
+    if (lsWebsocket.readyState == 1) {
+        try {
+            let rString;
+            if (modifier == '') {
+                rString = 'get' + request;
+            } else {
+                rString = 'get' + request + ' ' + modifier;
+            }
+            let response = await getLivesplitData(rString);
+            return response;
+        } catch (e) {
+            console.log(e);
+        }
+    }
+}
+
+function getLivesplitData(requestString) {
+    lsWebsocket.send(requestString);
+    return new Promise(function(resolve, reject) {
+        lsWebsocket.addEventListener('message', function (event) {
+            let data = JSON.parse(event.data);
+            document.getElementById('livesplit-message').innerHTML = "Event name: " + data.name + "   Data: " + data.data;
+            if (data.name == requestString) {
+                resolve(data.data);
+            }
+        }, {once: true});
+    });
+}
+
+[insert_over]
