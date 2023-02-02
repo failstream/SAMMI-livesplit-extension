@@ -11,7 +11,7 @@ LiveSplit Websocket
 [extension_version]
 
     < !--
-    * @version: 1.2
+    * @version: 1.21
     * -->
 
 [insert_external]
@@ -88,9 +88,6 @@ async function liveSplitConnect(ip, port) {
             document.getElementById('livesplit-message').innerHTML = "Event name: " + data.name + "   Data: " + data.data;
             if (lsListenTypes.includes(data.name)) {
                 sendTrigger(data.name);
-                if (data.name == 'split') {
-                    sendAdditionalSplitTriggers();
-                }
             }
             if (lsRequestTypes.includes(data.name)) {
                 let alertText = 'Request is ' + data.name;
@@ -109,7 +106,7 @@ function sendTrigger(event) {
     SAMMI.triggerExt(triggerName, {});
 }
 
-async function sendAdditionalSplitTriggers() {
+async function sendTrigger(event) {
     let obj = {};
 
     //get trigger pull info
@@ -128,7 +125,7 @@ async function sendAdditionalSplitTriggers() {
 		obj.delta = obj.splits[obj.splitindex].splitTime - obj.splits[obj.splitindex].comparison;
 		//trigger on pb
 		if (obj.splits[obj.splitindex].splitTime < obj.splits[obj.splitindex].personalBestSplitTime){
-			SAMMI.triggerExt('livesplit pb', {});
+			SAMMI.triggerExt('livesplit pb', obj);
 		}
 	} else {
 		obj.delta = await requestData('delta', '');
@@ -175,9 +172,14 @@ async function sendAdditionalSplitTriggers() {
 		}
 	}
 
-    if (obj.gold){
-		SAMMI.triggerExt('livesplit gold', {});
+  if (obj.gold){
+		SAMMI.triggerExt('livesplit gold', obj);
 	}
+
+  // send regular trigger
+  let triggerName = 'livesplit ';
+  triggerName += event;
+  SAMMI.triggerExt(triggerName, obj);
 }
 
 function liveSplitCommand(command) {
